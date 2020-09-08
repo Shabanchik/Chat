@@ -4,85 +4,59 @@
 #include <algorithm>
 #include <regex>
 #include <unordered_map>
-
+#include <uwebsockets/App.h>
+#include <thread>
 using namespace std;
 
-void to_lower(string& str) {
-    transform(str.begin(), str.end(), str.begin(), ::tolower);
-}
+struct UserConnection {
+    unsigned long user_id; 
+    string* user_name;
+    
+};
 
-string to_lower2(string str) {
-    transform(str.begin(), str.end(), str.begin(), ::tolower);
-    return str;
-}
-string user() {
-    string question;
-    cout << "[USER]: ";
-    getline(cin, question);//в переменную вопрос вместо первого слова дается вся строка введенная
-    question = to_lower2(question);
-    return question; //с помощью фции получаем текст который будет ввводить юзер в нижнем регистре
-}
+//SET_NAME - установить имя
 
-void bot(string text) {
-    cout << "[BOT]: " << text << endl;
-}
 
-// фция будет выводить текст бота на экран
 
 int main()
 {
-    unordered_map<string, string> database = {
-        {"hello","heyooo, have a nice cock"},
-        {"how are you","I'm in the getto RATATATAA. As you can see I'm great."},
-        {"what is your name","meeeeh,POWERBOT for impotents"},
+    atomic_ulong latest_user_id = 10;
 
-    };
+    vector<thread*> threads(thread::hardware_concurrency());
+    //создали список потоков
 
+    transform(threads.begin(), threads.end(), threads.begin(), [&latest_user_id](auto* thr) {
+        return new thread([&latest_user_id] () {
+            //создает не сконфигурируемое приложение--конфигурируем сервер нашего чата,то ювс...
+            //"ws://127.0.0.1/"
+            uWS::App().ws<UserConnection>("/*", {
+                //ЛЯМДА ФУНКЦИЯ
+                .open = [&latest_user_id](auto* ws) {
+                    //что делать при подключении пользователя
+                    UserConnection* data = (UserConnection*)ws->getUserData();//выделяю место для данных
+                    data->user_id = latest_user_id++;
+                    cout << "New user connected id"<< data->user_id<<endl;
+                 },
+                .message = [](auto* ws,string_view message,uWS::OpCode opCode) {
+                     UserConnection* data = (UserConnection*)ws->getUserData();
+                     cout << "New message " << message<<" User ID "<< data->user_id<<endl;
+                     //что делать при получении сообщения(когда пользователь из существующего подключения отправляет сообщение) 
 
-    string question;
+                }
+                }).listen(9999,
+                    [](auto* token) {
+                        if (token) {
+                            cout << "Server started and listening on port 9999"<<endl;
+                        }
+                        else {
+                            cout << "Server failed to start :("<<endl;
+                        }
+                    }).run();
 
-
-    bot("SUP! WELCOME to our SUPER POUPER POWERBOT for impotents, ask any questions!");
-
-    while (question.compare("exit") != 0) {
-        question = user();
-        for (auto entry : database) {
-            auto expression = regex(".*" + entry.first + ".*");
-            if (regex_match(question, expression)) {
-                bot(entry.second);
-            }
-
-        }
-    }
-    bot("Nice to see ya! Byyyyeeeee:)");
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    /*
-    if (regex_match(question,regex(".*hello.*"))) {
-        bot("HEY DUDE, how it's going?");
-    }
-    //регекс - смотрит чтоб в выражении присутствовало слово хеллоу, тоесть можно добавлять знаки
-    if (regex_match(question, regex(".*how are you.*"))) {
-        bot("Literally good;) To be honest I'm drunk...");
-    }
-
-    if (regex_match(question, regex(".*what is your name.*"))) {
-        bot("My name is SUPER POUPER POWERBOT for impotents");
-    }*/
-
-    //получить вопрос
-    //найти ответ
-    //вівести ответ
+        });
+    });
+    // помощью трансформ создаем каждый раз новый поток с нашим приложением
+    for_each(threads.begin(), threads.end(), [](auto* thr) {thr->join(); });
+    //для каждого из тредов мы их джоиним- заканчиваем, поток исчезает
+    
 }
